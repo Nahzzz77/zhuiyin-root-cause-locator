@@ -1428,7 +1428,7 @@
 
     function providerLabel(value) {
       const raw = text(value, "未回传");
-      return { codex: "代码分析模型", "scripted-fallback": "演示规则引擎" }[raw.toLowerCase()] || raw;
+      return { "codex-exec": "Codex 代码分析", "scripted-fallback-demo-only": "规则快速演示 · 非 AI" }[raw.toLowerCase()] || raw;
     }
 
     function locationLabel(finding) {

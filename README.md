@@ -80,6 +80,8 @@ Codex 返回结构化候选
 
 macOS 用户可以双击 `启动追因.command`。
 
+现场只演示操作流程和报告结构时，可以双击 `启动追因-快速演示.command`。它使用本地规则，通常会立即返回，并在页面明确标记为“非 AI”。
+
 终端启动方式如下。
 
 ```bash
@@ -113,7 +115,8 @@ CHECKPOINT_SCRIPTED_FALLBACK=force python3 server.py
 ├── static/index.html           视频首页和根因排查工作台
 ├── sample_repo/                优惠券异常演示项目
 ├── tests/                      后端行为测试
-└── 启动追因.command             macOS 启动入口
+├── 启动追因.command             macOS 真实分析入口
+└── 启动追因-快速演示.command    macOS 规则演示入口
 ```
 
 ## 扫描限制
