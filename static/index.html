@@ -1,0 +1,1683 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="将业务异常转成可定位、可复核的代码根因候选。">
+  <title>追因 · 智能代码根因定位台</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #0b0d0c;
+      --muted: #626761;
+      --line: #d6d9d4;
+      --line-strong: #b9bfb7;
+      --surface: #ffffff;
+      --surface-soft: #f3f4f1;
+      --page: #e9ebe7;
+      --primary: #0b0d0c;
+      --primary-dark: #000000;
+      --primary-soft: #e5e8e3;
+      --success: #147d64;
+      --success-soft: #e7f7f2;
+      --warning: #9a5b09;
+      --warning-soft: #fff5db;
+      --danger: #bb2d3b;
+      --danger-soft: #fff0f1;
+      --shadow: 0 22px 64px rgba(15, 18, 15, .08);
+      --radius: 22px;
+      --font-heading: "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-body: "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-hero-ui: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+      --font-hero-title: "Songti SC", STSong, "Noto Serif CJK SC", serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      overflow-x: hidden;
+      background: #d6d8d3;
+      color: var(--ink);
+      font-family: var(--font-body);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    button, textarea { font: inherit; }
+
+    button { cursor: pointer; }
+
+    button:disabled { cursor: not-allowed; opacity: .58; }
+
+    :focus-visible {
+      outline: 3px solid rgba(0, 0, 0, .28);
+      outline-offset: 2px;
+    }
+
+    .skip-link {
+      position: fixed;
+      z-index: 100;
+      top: 10px;
+      left: 10px;
+      transform: translateY(-160%);
+      border-radius: 8px;
+      background: var(--ink);
+      color: #fff;
+      padding: 8px 12px;
+    }
+
+    .skip-link:focus { transform: none; }
+
+    .hero-video {
+      position: fixed;
+      z-index: 0;
+      inset: 0;
+      width: 100vw;
+      height: 100svh;
+      object-fit: cover;
+      object-position: 70% center;
+      pointer-events: none;
+      background: #d6d8d3;
+    }
+
+    .hero-nav {
+      position: fixed;
+      z-index: 40;
+      inset: 0 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 24px;
+      padding: 17px clamp(20px, 3vw, 38px);
+      color: #0b0d0c;
+      font-family: var(--font-hero-ui);
+      transition: transform .3s ease, opacity .3s ease;
+    }
+
+    .hero-nav.is-hidden {
+      transform: translateY(-110%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .hero-logo {
+      justify-self: start;
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      color: inherit;
+      font-family: var(--font-hero-ui);
+      font-size: clamp(21px, 2vw, 26px);
+      font-weight: 650;
+      line-height: 1;
+      letter-spacing: -.04em;
+      text-decoration: none;
+    }
+
+    .hero-logo-mark {
+      font-size: 1.12em;
+      letter-spacing: -.02em;
+      user-select: none;
+    }
+
+    .hero-nav-cta {
+      color: inherit;
+      justify-self: end;
+      font-size: clamp(16px, 1.5vw, 22px);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      transition: opacity .2s ease;
+    }
+
+    .hero-nav-cta:hover { opacity: .56; }
+
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 100svh;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      padding: 104px clamp(20px, 3vw, 40px) 58px;
+      font-family: var(--font-hero-ui);
+    }
+
+    .hero-wash {
+      position: absolute;
+      z-index: 0;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, rgba(242, 242, 238, .70) 0%, rgba(242, 242, 238, .38) 38%, transparent 68%),
+        linear-gradient(180deg, rgba(255, 255, 255, .34) 0%, transparent 30%, rgba(0, 0, 0, .08) 100%);
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      width: min(680px, 100%);
+    }
+
+    .hero-title {
+      min-height: 3.2em;
+      margin: 0 0 22px;
+      color: #0b0d0c;
+      font-family: var(--font-hero-title);
+      font-size: clamp(22px, 3vw, 36px);
+      font-weight: 600;
+      line-height: 1.38;
+      letter-spacing: -.02em;
+    }
+
+    .hero-title.is-typing::after {
+      content: "";
+      display: inline-block;
+      width: 2px;
+      height: 1.05em;
+      margin-left: 3px;
+      vertical-align: -.12em;
+      background: #0b0d0c;
+      animation: blink 1s step-end infinite;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px 3px;
+      opacity: 0;
+      transform: translateY(8px);
+      animation: hero-reveal .4s ease .4s forwards;
+    }
+
+    .hero-pill {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(0, 0, 0, .10);
+      border-radius: 999px;
+      background: #fff;
+      color: #0b0d0c;
+      padding: .35em 17px;
+      font: inherit;
+      font-size: clamp(13px, 1.2vw, 15px);
+      line-height: 1.3;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: color .2s ease, background .2s ease, border-color .2s ease;
+    }
+
+    .hero-pill:hover {
+      border-color: #0b0d0c;
+      background: #0b0d0c;
+      color: #fff;
+    }
+
+    .hero-pill.is-outline {
+      border-color: rgba(255, 255, 255, .92);
+      background: rgba(0, 0, 0, .12);
+      color: #fff;
+      backdrop-filter: blur(5px);
+    }
+
+    .hero-pill.is-outline:hover {
+      border-color: #fff;
+      background: #fff;
+      color: #0b0d0c;
+    }
+
+    .hero-hint {
+      position: absolute;
+      z-index: 1;
+      right: clamp(20px, 3vw, 40px);
+      bottom: 24px;
+      margin: 0;
+      color: rgba(0, 0, 0, .68);
+      font-size: 12px;
+      letter-spacing: .04em;
+    }
+
+    .app-shell {
+      position: relative;
+      z-index: 2;
+      min-height: 100vh;
+      border-top: 1px solid rgba(0, 0, 0, .14);
+      background: var(--page);
+    }
+
+    @keyframes hero-reveal {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .topbar {
+      position: sticky;
+      z-index: 20;
+      top: 0;
+      border-bottom: 1px solid rgba(0, 0, 0, .12);
+      background: rgba(250, 250, 247, .94);
+      backdrop-filter: blur(14px);
+    }
+
+    .topbar-inner,
+    main {
+      width: min(1440px, calc(100% - 32px));
+      margin-inline: auto;
+    }
+
+    .topbar-inner {
+      min-height: 68px;
+      display: grid;
+      grid-template-columns: auto minmax(260px, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+      padding-block: 8px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      font-weight: 750;
+      letter-spacing: -.01em;
+    }
+
+    .brand-mark {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      color: var(--ink);
+      font-size: 24px;
+    }
+
+    .toolbar-repo {
+      min-width: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface-soft);
+      padding: 6px 9px;
+    }
+
+    .toolbar-status {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .toolbar-status-label {
+      display: block;
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.2;
+    }
+
+    .status-icon {
+      width: 30px;
+      height: 30px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .status-title {
+      display: block;
+      max-width: 180px;
+      overflow: hidden;
+      font-size: 12px;
+      font-weight: 760;
+      line-height: 1.35;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    main {
+      scroll-margin-top: 88px;
+      padding: 20px 0 48px;
+    }
+
+    #workbench-title,
+    #scan-boundary { scroll-margin-top: 88px; }
+
+    .meta-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .72);
+      color: var(--muted);
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(300px, .52fr) minmax(0, 1fr);
+      gap: 16px;
+    }
+
+    .panel {
+      border: 1px solid rgba(0, 0, 0, .12);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .input-panel,
+    .output-panel {
+      min-width: 0;
+      padding: clamp(18px, 2vw, 26px);
+    }
+
+    .output-panel { min-height: calc(100vh - 108px); }
+
+    .panel-heading {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .panel-heading h2,
+    .output-heading h2,
+    .report h2 {
+      margin: 0;
+      font-size: 21px;
+      letter-spacing: -.018em;
+    }
+
+    .panel-heading p,
+    .status-copy {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .text-button {
+      flex: 0 0 auto;
+      border: 1px solid var(--line-strong);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--primary);
+      padding: 8px 11px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .text-button:hover { background: var(--primary-soft); }
+
+    .repo-name {
+      display: block;
+      overflow: hidden;
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.3;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .repo-path {
+      display: block;
+      overflow: hidden;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10px;
+      line-height: 1.3;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .locked {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      border-radius: 999px;
+      background: var(--success-soft);
+      color: var(--success);
+      padding: 5px 8px;
+      font-size: 11px;
+      font-weight: 750;
+    }
+
+    .field { margin-top: 18px; }
+
+    .field:first-of-type { margin-top: 0; }
+
+    .field-label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 7px;
+      font-size: 14px;
+      font-weight: 720;
+    }
+
+    .optional,
+    .count {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 112px;
+      resize: vertical;
+      border: 1px solid var(--line-strong);
+      border-radius: 15px;
+      background: #fff;
+      color: var(--ink);
+      padding: 12px 13px;
+      transition: border-color .16s, box-shadow .16s;
+    }
+
+    textarea::placeholder { color: #969b95; }
+
+    textarea:hover { border-color: #8e948c; }
+
+    textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(0, 0, 0, .10);
+      outline: none;
+    }
+
+    .field-hint {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .consent {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-top: 20px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--surface-soft);
+      padding: 12px 13px;
+      color: #4d524d;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .consent input {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+      margin: 1px 0 0;
+      accent-color: var(--primary);
+    }
+
+    .form-footer {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 16px;
+      margin-top: 26px;
+      padding-top: 22px;
+      border-top: 1px solid var(--line);
+    }
+
+    .privacy-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      max-width: 400px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .primary-button {
+      min-height: 46px;
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--primary);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, .16);
+      color: #fff;
+      padding: 0 19px;
+      font-weight: 750;
+    }
+
+    .primary-button:hover:not(:disabled) { background: var(--primary-dark); }
+
+    .button-spinner {
+      width: 16px;
+      height: 16px;
+      display: none;
+      border: 2px solid rgba(255, 255, 255, .45);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .75s linear infinite;
+    }
+
+    .is-running .button-spinner { display: block; }
+
+    .output-heading {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+    }
+
+    .status-copy {
+      max-width: 560px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .phase-list {
+      list-style: none;
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface-soft);
+      padding: 10px 14px;
+    }
+
+    .phase {
+      position: relative;
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr) auto;
+      gap: 9px;
+      align-items: center;
+      min-height: 44px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .phase:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      z-index: 0;
+      left: 11px;
+      top: 31px;
+      bottom: -12px;
+      width: 1px;
+      background: var(--line);
+    }
+
+    .phase-dot {
+      position: relative;
+      z-index: 1;
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      background: #fff;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .phase.done { color: var(--ink); }
+
+    .phase.done .phase-dot {
+      border-color: var(--success);
+      background: var(--success-soft);
+      color: var(--success);
+    }
+
+    .phase.active { color: var(--ink); font-weight: 700; }
+
+    .phase.active .phase-dot {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px var(--primary-soft);
+      color: var(--primary);
+    }
+
+    .phase.failed { color: var(--danger); font-weight: 700; }
+
+    .phase.failed .phase-dot {
+      border-color: var(--danger);
+      background: var(--danger-soft);
+      color: var(--danger);
+    }
+
+    .phase-state { font-size: 11px; font-weight: 650; }
+
+    .run-metrics {
+      width: min(280px, 42%);
+      flex: 0 0 auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+      margin: 0;
+    }
+
+    .metric {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      padding: 10px 11px;
+    }
+
+    .metric-label { color: var(--muted); font-size: 10px; }
+
+    .metric-value {
+      overflow: hidden;
+      margin-top: 2px;
+      font-size: 13px;
+      font-weight: 750;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .honesty-note {
+      margin: 16px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .error-box {
+      display: none;
+      margin-top: 18px;
+      border: 1px solid #efbcc2;
+      border-radius: 12px;
+      background: var(--danger-soft);
+      color: #8f2330;
+      padding: 13px;
+      font-size: 13px;
+    }
+
+    .error-box strong { display: block; margin-bottom: 3px; }
+
+    .error-box p { margin: 0; }
+
+    .error-box.is-visible { display: block; }
+
+    .report {
+      min-width: 0;
+      margin-top: 24px;
+      border-top: 1px solid var(--line);
+      padding-top: 24px;
+    }
+
+    .report[hidden] { display: none; }
+
+    .report-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    .report-kicker {
+      margin: 0 0 5px;
+      color: var(--success);
+      font-size: 12px;
+      font-weight: 750;
+      letter-spacing: .06em;
+    }
+
+    .report-meta {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 7px;
+    }
+
+    .report-actions {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+    }
+
+    .summary-box {
+      border-left: 4px solid var(--primary);
+      border-radius: 0 12px 12px 0;
+      background: var(--primary-soft);
+      padding: 16px 18px;
+    }
+
+    .summary-box h3,
+    .finding h3,
+    .detail-box h4 {
+      margin: 0;
+      color: var(--ink);
+    }
+
+    .summary-box h3 { font-size: 13px; }
+
+    .summary-box p { margin: 5px 0 0; }
+
+    .section-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 30px 0 12px;
+    }
+
+    .section-heading h3 { margin: 0; font-size: 17px; }
+
+    .section-heading span { color: var(--muted); font-size: 12px; }
+
+    .findings { display: grid; gap: 14px; }
+
+    .finding {
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--surface);
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .finding-head {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: start;
+      background: var(--surface-soft);
+      padding: 15px 44px 15px 17px;
+      color: var(--ink);
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .finding-head::-webkit-details-marker { display: none; }
+
+    .finding-head::after {
+      content: "›";
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      color: var(--muted);
+      font-size: 20px;
+      line-height: 1;
+      transition: transform .16s;
+    }
+
+    .finding[open] .finding-head { border-bottom: 1px solid var(--line); }
+
+    .finding[open] .finding-head::after { transform: rotate(90deg); }
+
+    .rank {
+      min-width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 10px;
+      background: var(--ink);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .finding-title-wrap { min-width: 0; }
+
+    .finding-title {
+      display: block;
+      font-size: 15px;
+      font-weight: 750;
+      line-height: 1.4;
+    }
+
+    .location {
+      display: inline-block;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      margin-top: 4px;
+      color: var(--primary);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .confidence {
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 11px;
+      font-weight: 750;
+      white-space: nowrap;
+    }
+
+    .confidence.high { background: var(--success-soft); color: var(--success); }
+    .confidence.medium { background: var(--warning-soft); color: var(--warning); }
+    .confidence.low { background: #eef1f5; color: #59687a; }
+
+    .finding-body { padding: 18px; }
+
+    .reason { margin: 0 0 17px; }
+
+    .evidence {
+      margin: 0;
+      overflow: auto;
+      border: 1px solid #d3deeb;
+      border-radius: 11px;
+      background: #f7f9fc;
+      color: #24364e;
+      padding: 13px 14px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .sub-label {
+      display: block;
+      margin: 0 0 7px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .chain {
+      display: flex;
+      align-items: stretch;
+      gap: 7px;
+      overflow-x: auto;
+      margin-top: 17px;
+      padding-bottom: 4px;
+    }
+
+    .chain-step {
+      min-width: 145px;
+      flex: 1 0 145px;
+      display: flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: 10px 11px;
+      font-size: 12px;
+    }
+
+    .chain-arrow {
+      align-self: center;
+      flex: 0 0 auto;
+      color: #91a0b4;
+      font-weight: 800;
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 17px;
+    }
+
+    .detail-box {
+      border-radius: 11px;
+      background: var(--surface-soft);
+      padding: 13px 14px;
+    }
+
+    .detail-box h4 { font-size: 12px; }
+
+    .detail-box p {
+      margin: 5px 0 0;
+      color: #41536b;
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+
+    .empty-findings {
+      border: 1px dashed var(--line-strong);
+      border-radius: 12px;
+      color: var(--muted);
+      padding: 20px;
+      text-align: center;
+    }
+
+    #scan-details {
+      margin-top: 16px;
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+    }
+
+    #scan-details > summary {
+      color: #41536b;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .plain-list {
+      margin: 9px 0 0;
+      padding-left: 20px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .plain-list li + li { margin-top: 4px; }
+
+    .footer-note {
+      margin: 24px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      clip-path: inset(50%);
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 780px) {
+      .hero {
+        align-items: flex-end;
+        padding: 96px 20px 58px;
+      }
+      .hero-video { object-position: 68% center; }
+      .hero-wash {
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, .34) 0%, transparent 34%, rgba(240, 240, 235, .74) 100%),
+          linear-gradient(90deg, rgba(242, 242, 238, .42), transparent 80%);
+      }
+      .hero-content { width: 100%; }
+      .hero-title { min-height: 4.2em; }
+      .hero-hint { display: none; }
+    }
+
+    @media (max-width: 680px) {
+      .workspace { grid-template-columns: 1fr; }
+      .output-panel { min-height: 0; }
+    }
+
+    @media (max-width: 600px) {
+      .topbar-inner,
+      main { width: min(100% - 24px, 1440px); }
+      .topbar-inner { grid-template-columns: minmax(0, 1fr) auto; gap: 7px 10px; }
+      .toolbar-repo { grid-column: 1 / -1; grid-row: 2; }
+      .status-title { max-width: 140px; }
+      main { padding-top: 12px; }
+      .input-panel, .output-panel { padding: 16px; }
+      .panel-heading, .form-footer, .report-header, .output-heading { align-items: stretch; flex-direction: column; }
+      .panel-heading, .form-footer, .report-header, .output-heading { display: flex; }
+      .text-button, .primary-button { width: 100%; }
+      .run-metrics { width: 100%; }
+      .report-actions { align-items: stretch; }
+      .report-meta { justify-content: flex-start; }
+      .finding-head { grid-template-columns: auto minmax(0, 1fr); }
+      .confidence { grid-column: 2; justify-self: start; }
+      .detail-grid { grid-template-columns: 1fr; }
+      .chain { flex-direction: column; overflow-x: visible; }
+      .chain-step { min-width: 0; flex: auto; }
+      .chain-arrow { align-self: center; transform: rotate(90deg); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+      .hero-actions { opacity: 1; transform: none; }
+      .hero-title.is-typing::after { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到主要内容</a>
+
+  <video class="hero-video" id="hero-video" muted playsinline preload="auto" aria-hidden="true" tabindex="-1">
+    <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260530_042513_df96a13b-6155-4f6e-8b93-c9dee66fba08.mp4" type="video/mp4">
+  </video>
+
+  <header class="hero-nav" id="hero-nav">
+    <a class="hero-logo" href="#hero" aria-label="返回首页">
+      <span>追因</span><span class="hero-logo-mark" aria-hidden="true">✳︎</span>
+    </a>
+    <a class="hero-nav-cta" href="#main">开始排查</a>
+  </header>
+
+  <section class="hero" id="hero" aria-labelledby="hero-title">
+    <div class="hero-wash" aria-hidden="true"></div>
+    <div class="hero-content">
+      <h1 class="hero-title" id="hero-title">把你看到的异常说清楚。系统会只读扫描已授权仓库，给出最多三个值得优先检查的代码位置。</h1>
+      <div class="hero-actions">
+        <a class="hero-pill" href="#main">开始根因排查</a>
+        <button class="hero-pill" id="hero-fill-demo" type="button">填入优惠券示例</button>
+        <a class="hero-pill" href="#workbench-title">看看怎么工作</a>
+        <a class="hero-pill" href="#scan-boundary">了解扫描边界</a>
+        <span class="hero-pill is-outline">只读扫描 · 不修改代码</span>
+      </div>
+    </div>
+    <p class="hero-hint">左右移动鼠标，查看视频</p>
+  </section>
+
+  <div class="app-shell" id="workbench">
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand" aria-label="追因智能代码根因定位台">
+        <span class="brand-mark" aria-hidden="true">✳︎</span>
+        <span>追因 · 智能代码根因定位台</span>
+      </div>
+      <div class="toolbar-repo" aria-label="后端锁定的代码仓库">
+        <span style="min-width:0">
+          <span class="repo-name" id="repo-name">正在读取授权仓库…</span>
+          <span class="repo-path" id="repo-path">路径由启动参数锁定，浏览器不能修改</span>
+        </span>
+        <span class="locked" title="仓库由后端启动参数授权，页面不能更改"><span aria-hidden="true">🔒</span> 只读</span>
+      </div>
+      <div class="toolbar-status" aria-live="polite">
+        <span class="status-icon" id="status-icon" aria-hidden="true">1</span>
+        <span style="min-width:0">
+          <span class="toolbar-status-label">当前状态</span>
+          <span class="status-title" id="status-title">等待异常描述</span>
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="workspace">
+      <section class="panel input-panel" aria-labelledby="input-title">
+        <div class="panel-heading">
+          <div>
+            <h2 id="input-title">描述业务异常</h2>
+            <p>用业务语言填写，不需要先知道代码位置。</p>
+          </div>
+          <button class="text-button" id="fill-demo" type="button">填入优惠券示例</button>
+        </div>
+
+        <form id="bug-form" novalidate>
+          <div class="field">
+            <label class="field-label" for="bug-report">
+              <span>异常现象 <span aria-hidden="true" style="color:var(--danger)">*</span></span>
+              <span class="count" id="bug-count">0 / 4000</span>
+            </label>
+            <textarea id="bug-report" name="bug_report" maxlength="4000" required aria-describedby="bug-hint" placeholder="例如：用户取消订单后，再次下单仍提示优惠券已使用。"></textarea>
+            <p class="field-hint" id="bug-hint">写清楚谁、做了什么、看到了什么异常。</p>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="expected-result">
+              <span>预期结果 <span class="optional">选填</span></span>
+              <span class="count" id="expected-count">0 / 2000</span>
+            </label>
+            <textarea id="expected-result" name="expected_result" maxlength="2000" placeholder="例如：订单取消后，优惠券应恢复为可用。"></textarea>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="reproduction-steps">
+              <span>复现步骤 <span class="optional">选填</span></span>
+              <span class="count" id="steps-count">0 / 4000</span>
+            </label>
+            <textarea id="reproduction-steps" name="reproduction_steps" maxlength="4000" placeholder="1. 用户领取优惠券并下单&#10;2. 取消订单&#10;3. 再次选择同一张优惠券"></textarea>
+          </div>
+
+          <label class="consent" for="source-consent">
+            <input id="source-consent" name="source_consent" type="checkbox" required>
+            <span id="consent-hint">我确认有权分析该代码仓库，并知晓本次分析所需的源码片段会提交给代码分析模型服务。</span>
+          </label>
+
+          <div class="form-footer">
+            <div class="privacy-note" id="scan-boundary">
+              <span aria-hidden="true">ⓘ</span>
+              <span>页面不接收仓库路径。后端仅扫描启动时授权的目录，并把模型失败如实返回。</span>
+            </div>
+            <button class="primary-button" id="analyze-button" type="submit" disabled>
+              <span class="button-spinner" aria-hidden="true"></span>
+              <span id="button-label">开始根因排查</span>
+              <span aria-hidden="true" id="button-arrow">→</span>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel output-panel" aria-labelledby="workbench-title">
+        <div class="output-heading">
+          <div>
+            <p class="report-kicker">分析工作区</p>
+            <h2 id="workbench-title">排查进度与候选</h2>
+            <p class="status-copy" id="status-copy">填好现象并确认授权后即可开始排查</p>
+          </div>
+          <div class="run-metrics">
+            <div class="metric">
+              <div class="metric-label">已用时间</div>
+              <div class="metric-value" id="elapsed">--</div>
+            </div>
+            <div class="metric">
+              <div class="metric-label">分析引擎</div>
+              <div class="metric-value" id="provider">等待回传</div>
+            </div>
+          </div>
+        </div>
+
+        <ol class="phase-list" id="phase-list" aria-label="分析阶段">
+          <li class="phase active"><span class="phase-dot">1</span><span>描述业务现象</span><span class="phase-state">当前</span></li>
+          <li class="phase"><span class="phase-dot">2</span><span>只读扫描与模型分析</span><span class="phase-state">等待</span></li>
+          <li class="phase"><span class="phase-dot">3</span><span>返回三个候选报告</span><span class="phase-state">等待</span></li>
+        </ol>
+        <p class="honesty-note">当前接口只回传服务端总耗时，因此不展示无法确认的分阶段耗时。</p>
+
+        <div class="error-box" id="error-box" role="alert">
+          <strong id="error-title">分析失败</strong>
+          <p id="error-message"></p>
+          <p id="error-hint" style="margin-top:5px"></p>
+        </div>
+
+        <section class="report" id="report" aria-labelledby="report-title" hidden tabindex="-1">
+          <div class="report-header">
+            <div>
+              <p class="report-kicker">根因排查报告</p>
+              <h2 id="report-title">三个根因候选</h2>
+            </div>
+            <div class="report-actions">
+              <div class="report-meta" id="report-meta"></div>
+              <button class="text-button" id="download-report" type="button" aria-label="将本次根因排查候选下载为文档交给开发">下载报告给开发</button>
+            </div>
+          </div>
+
+          <div class="summary-box">
+            <h3>结论摘要</h3>
+            <p id="summary"></p>
+          </div>
+
+          <div class="section-heading">
+            <h3>优先检查的三个位置</h3>
+            <span id="finding-count"></span>
+          </div>
+          <div class="findings" id="findings"></div>
+
+          <details id="scan-details">
+            <summary id="scan-summary">查看扫描范围与限制</summary>
+            <div id="scan-content"></div>
+          </details>
+        </section>
+      </section>
+    </div>
+
+    <p class="footer-note">当前版本输出的是根因排查起点和三个优先候选，不是已确认根因；最终修复仍由开发确认并验证。</p>
+    <div class="sr-only" id="announcer" aria-live="assertive"></div>
+  </main>
+  </div>
+
+  <script>
+    "use strict";
+
+    const form = document.querySelector("#bug-form");
+    const analyzeButton = document.querySelector("#analyze-button");
+    const buttonLabel = document.querySelector("#button-label");
+    const buttonArrow = document.querySelector("#button-arrow");
+    const report = document.querySelector("#report");
+    const errorBox = document.querySelector("#error-box");
+    const sourceConsent = document.querySelector("#source-consent");
+    const fields = {
+      bug_report: document.querySelector("#bug-report"),
+      expected_result: document.querySelector("#expected-result"),
+      reproduction_steps: document.querySelector("#reproduction-steps")
+    };
+    let config = null;
+    let timer = null;
+    let requestStarted = 0;
+    let currentReport = null;
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const heroVideo = document.querySelector("#hero-video");
+    const heroTitle = document.querySelector("#hero-title");
+    const heroNav = document.querySelector("#hero-nav");
+
+    function setupHeroTitle() {
+      if (reduceMotion) return;
+      const fullText = heroTitle.textContent.trim();
+      heroTitle.textContent = "";
+      heroTitle.classList.add("is-typing");
+      window.setTimeout(() => {
+        let index = 0;
+        const typeTimer = window.setInterval(() => {
+          index += 1;
+          heroTitle.textContent = fullText.slice(0, index);
+          if (index >= fullText.length) {
+            window.clearInterval(typeTimer);
+            heroTitle.classList.remove("is-typing");
+          }
+        }, 38);
+      }, 600);
+    }
+
+    function setupVideoScrub() {
+      if (reduceMotion) return;
+      let previousX = null;
+      let targetTime = 0;
+      let seekPending = false;
+
+      function seekToTarget() {
+        if (seekPending || !Number.isFinite(heroVideo.duration) || heroVideo.duration <= 0) return;
+        seekPending = true;
+        heroVideo.currentTime = Math.max(0, Math.min(heroVideo.duration, targetTime));
+      }
+
+      heroVideo.addEventListener("loadedmetadata", () => { targetTime = heroVideo.currentTime; });
+      heroVideo.addEventListener("seeked", () => {
+        seekPending = false;
+        if (Math.abs(heroVideo.currentTime - targetTime) > .03) seekToTarget();
+      });
+      window.addEventListener("mousemove", event => {
+        if (window.scrollY >= window.innerHeight * .9) {
+          previousX = event.clientX;
+          return;
+        }
+        if (previousX === null) {
+          previousX = event.clientX;
+          return;
+        }
+        const delta = event.clientX - previousX;
+        previousX = event.clientX;
+        if (!Number.isFinite(heroVideo.duration) || heroVideo.duration <= 0) return;
+        targetTime = Math.max(0, Math.min(heroVideo.duration, targetTime + (delta / window.innerWidth) * .8 * heroVideo.duration));
+        seekToTarget();
+      }, { passive: true });
+      window.addEventListener("blur", () => { previousX = null; });
+    }
+
+    function setupHeroNavigation() {
+      new IntersectionObserver(([entry]) => {
+        heroNav.classList.toggle("is-hidden", !entry.isIntersecting);
+      }, { threshold: .08 }).observe(document.querySelector("#hero"));
+    }
+
+    const phaseMarkup = {
+      idle: [
+        ["active", "1", "描述业务现象", "当前"],
+        ["", "2", "只读扫描与模型分析", "等待"],
+        ["", "3", "返回三个候选报告", "等待"]
+      ],
+      running: [
+        ["done", "✓", "异常信息已提交", "完成"],
+        ["active", "2", "后端只读扫描与模型分析", "进行中"],
+        ["", "3", "返回三个候选报告", "等待"]
+      ],
+      success: [
+        ["done", "✓", "异常信息已提交", "完成"],
+        ["done", "✓", "后端分析已返回", "完成"],
+        ["done", "✓", "三个候选报告已生成", "完成"]
+      ],
+      failed: [
+        ["done", "✓", "异常信息已提交", "完成"],
+        ["failed", "!", "后端分析未完成", "失败"],
+        ["", "3", "三个候选报告", "未生成"]
+      ]
+    };
+
+    function text(value, fallback = "") {
+      return typeof value === "string" && value.trim() ? value.trim() : fallback;
+    }
+
+    function create(tag, className, content) {
+      const node = document.createElement(tag);
+      if (className) node.className = className;
+      if (content !== undefined) node.textContent = String(content);
+      return node;
+    }
+
+    function setPhases(kind) {
+      const list = document.querySelector("#phase-list");
+      list.replaceChildren(...phaseMarkup[kind].map(([state, mark, label, status]) => {
+        const item = create("li", `phase ${state}`.trim());
+        item.append(create("span", "phase-dot", mark), create("span", "", label), create("span", "phase-state", status));
+        return item;
+      }));
+    }
+
+    function setStatus(kind, title, copy) {
+      const icon = document.querySelector("#status-icon");
+      const marks = { idle: "1", running: "…", success: "✓", failed: "!" };
+      icon.textContent = marks[kind];
+      icon.style.background = kind === "success" ? "var(--success-soft)" : kind === "failed" ? "var(--danger-soft)" : "var(--primary-soft)";
+      icon.style.color = kind === "success" ? "var(--success)" : kind === "failed" ? "var(--danger)" : "var(--primary)";
+      document.querySelector("#status-title").textContent = title;
+      document.querySelector("#status-copy").textContent = copy;
+      setPhases(kind);
+    }
+
+    function updateCounts() {
+      document.querySelector("#bug-count").textContent = `${fields.bug_report.value.length} / 4000`;
+      document.querySelector("#expected-count").textContent = `${fields.expected_result.value.length} / 2000`;
+      document.querySelector("#steps-count").textContent = `${fields.reproduction_steps.value.length} / 4000`;
+    }
+
+    function fillExample() {
+      const demo = config?.demo_input || {
+        bug_report: "用户取消使用优惠券的订单后，再次下单仍提示优惠券已使用，无法重新使用。",
+        expected_result: "订单取消成功后，应退还该订单占用的优惠券，使用户可以再次使用。",
+        reproduction_steps: "1. 用户领取优惠券并下单；2. 订单创建成功；3. 用户取消订单；4. 再次下单选择同一优惠券时提示已使用。"
+      };
+      Object.entries(fields).forEach(([key, field]) => { field.value = text(demo[key]); });
+      updateCounts();
+      fields.bug_report.focus();
+      document.querySelector("#announcer").textContent = "已填入优惠券异常示例";
+    }
+
+    function setRunning(running) {
+      analyzeButton.disabled = running || !config;
+      analyzeButton.classList.toggle("is-running", running);
+      buttonLabel.textContent = running ? "正在排查…" : "开始根因排查";
+      buttonArrow.hidden = running;
+      Object.values(fields).forEach(field => { field.disabled = running; });
+      sourceConsent.disabled = running;
+      document.querySelector("#fill-demo").disabled = running;
+    }
+
+    function startTimer() {
+      requestStarted = performance.now();
+      document.querySelector("#elapsed").textContent = "0.0 秒";
+      timer = window.setInterval(() => {
+        document.querySelector("#elapsed").textContent = `${((performance.now() - requestStarted) / 1000).toFixed(1)} 秒`;
+      }, 100);
+    }
+
+    function stopTimer(serverSeconds) {
+      window.clearInterval(timer);
+      timer = null;
+      const fallback = (performance.now() - requestStarted) / 1000;
+      const seconds = Number.isFinite(Number(serverSeconds)) ? Number(serverSeconds) : fallback;
+      document.querySelector("#elapsed").textContent = `${seconds.toFixed(1)} 秒`;
+    }
+
+    function showError(message, hint, status = "failed") {
+      setStatus(status, status === "failed" ? "分析没有完成" : "暂时无法开始", "请根据下面提示处理后重试");
+      document.querySelector("#error-message").textContent = text(message, "发生未知错误");
+      const hintNode = document.querySelector("#error-hint");
+      hintNode.textContent = text(hint);
+      hintNode.hidden = !text(hint);
+      errorBox.classList.add("is-visible");
+      report.hidden = true;
+      document.querySelector("#announcer").textContent = `分析失败：${text(message, "发生未知错误")}`;
+    }
+
+    function confidenceLabel(value) {
+      return { high: "模型判断：高", medium: "模型判断：中", low: "模型判断：低" }[value] || "模型判断：未知";
+    }
+
+    function providerLabel(value) {
+      const raw = text(value, "未回传");
+      return { codex: "代码分析模型", "scripted-fallback": "演示规则引擎" }[raw.toLowerCase()] || raw;
+    }
+
+    function locationLabel(finding) {
+      const file = text(finding.file, "位置未知");
+      const start = Number(finding.start_line);
+      const end = Number(finding.end_line);
+      if (!Number.isInteger(start) || start < 1) return file;
+      return `${file}:${start}${Number.isInteger(end) && end > start ? `–${end}` : ""}`;
+    }
+
+    function renderFinding(finding, index) {
+      const card = create("details", "finding");
+      card.open = index === 0;
+      const head = create("summary", "finding-head");
+      const rank = create("span", "rank", `#${index + 1}`);
+      const titleWrap = create("span", "finding-title-wrap");
+      titleWrap.append(create("span", "finding-title", text(finding.title, "待开发复核的根因候选")), create("span", "location", locationLabel(finding)));
+      const confidence = ["high", "medium", "low"].includes(finding.confidence) ? finding.confidence : "low";
+      head.append(rank, titleWrap, create("span", `confidence ${confidence}`, confidenceLabel(finding.confidence)));
+
+      const body = create("div", "finding-body");
+      body.append(create("p", "reason", text(finding.reason, "后端未返回原因说明。")));
+
+      const evidenceLabel = create("span", "sub-label", "后端提取的源码原文");
+      const evidence = create("pre", "evidence", text(finding.evidence, "未返回可展示的源码原文。"));
+      body.append(evidenceLabel, evidence);
+
+      const chainValues = Array.isArray(finding.cause_chain) ? finding.cause_chain.filter(value => text(value)) : [];
+      if (chainValues.length) {
+        body.append(create("span", "sub-label", "业务到代码因果链"));
+        const chain = create("div", "chain");
+        chainValues.forEach((step, stepIndex) => {
+          if (stepIndex) chain.append(create("span", "chain-arrow", "→"));
+          chain.append(create("span", "chain-step", step));
+        });
+        body.append(chain);
+      }
+
+      const detailGrid = create("div", "detail-grid");
+      const fix = create("div", "detail-box");
+      fix.append(create("h4", "", "修复建议"), create("p", "", text(finding.fix_suggestion, "需要开发结合上下文确认修复方式。")));
+      const verification = create("div", "detail-box");
+      verification.append(create("h4", "", "验证方式"), create("p", "", text(finding.verification, "修复后复现业务步骤，并执行相关回归测试。")));
+      detailGrid.append(fix, verification);
+      body.append(detailGrid);
+
+      card.append(head, body);
+      return card;
+    }
+
+    function renderList(title, values) {
+      if (!Array.isArray(values) || !values.length) return null;
+      const section = create("div");
+      section.append(create("strong", "", title));
+      const list = create("ul", "plain-list");
+      values.forEach(value => list.append(create("li", "", String(value))));
+      section.append(list);
+      return section;
+    }
+
+    function renderReport(result) {
+      document.querySelector("#summary").textContent = text(result.summary, "分析已完成，请从下方根因候选开始复核。");
+      const findings = Array.isArray(result.findings) ? result.findings.slice(0, 3) : [];
+      document.querySelector("#finding-count").textContent = findings.length ? `返回 ${findings.length} 个候选` : "未返回足够证据";
+      const findingsNode = document.querySelector("#findings");
+      findingsNode.replaceChildren(...(findings.length
+        ? findings.map(renderFinding)
+        : [create("div", "empty-findings", "这次没有找到证据足够的根因候选。它不等于代码没有问题，可以补充复现条件后重试。")]));
+
+      const meta = document.querySelector("#report-meta");
+      const provider = providerLabel(result.provider);
+      const elapsed = Number(result.elapsed_seconds);
+      const scanned = Array.isArray(result.scanned_files) ? result.scanned_files.length : 0;
+      meta.replaceChildren(
+        create("span", "meta-pill", `分析引擎 · ${provider}`),
+        create("span", "meta-pill", `服务端耗时 · ${Number.isFinite(elapsed) ? elapsed.toFixed(1) + " 秒" : "未回传"}`),
+        create("span", "meta-pill", `扫描 · ${scanned} 个文件`)
+      );
+
+      const scanContent = document.querySelector("#scan-content");
+      const scannedList = renderList("已扫描文件", result.scanned_files);
+      const limitationsList = renderList("本次限制", result.limitations);
+      scanContent.replaceChildren(...[scannedList, limitationsList].filter(Boolean));
+      document.querySelector("#scan-details").hidden = !scannedList && !limitationsList;
+      report.hidden = false;
+    }
+
+    function buildMarkdown({ result, input }) {
+      const findings = Array.isArray(result.findings) ? result.findings.slice(0, 3) : [];
+      const elapsed = Number(result.elapsed_seconds);
+      const lines = [
+        "# 追因根因候选报告",
+        "",
+        "> 本报告是开发排查起点，不是已确认根因。",
+        "",
+        "## 业务输入",
+        "",
+        `- 异常现象：${text(input.bug_report, "未提供")}`,
+        `- 预期结果：${text(input.expected_result, "未提供")}`,
+        `- 复现步骤：${text(input.reproduction_steps, "未提供")}`,
+        "",
+        "## 结论摘要",
+        "",
+        text(result.summary, "未返回摘要"),
+        "",
+        `- 分析引擎：${providerLabel(result.provider)}`,
+        `- 服务端耗时：${Number.isFinite(elapsed) ? elapsed.toFixed(1) + " 秒" : "未回传"}`,
+        `- 扫描文件：${Array.isArray(result.scanned_files) ? result.scanned_files.length : 0} 个`,
+        "",
+        "## 三个根因候选"
+      ];
+
+      if (!findings.length) lines.push("", "本次未返回证据足够的候选位置。");
+      findings.forEach((finding, index) => {
+        const source = text(finding.evidence, "未返回源码原文").split("\n").map(line => `    ${line}`).join("\n");
+        const chain = Array.isArray(finding.cause_chain) ? finding.cause_chain.filter(value => text(value)) : [];
+        lines.push(
+          "",
+          `### ${index + 1}. ${text(finding.title, "待复核候选")}`,
+          "",
+          `- 位置：${locationLabel(finding)}`,
+          `- 置信度：${confidenceLabel(finding.confidence)}`,
+          `- 候选原因：${text(finding.reason, "未返回")}`,
+          "",
+          "#### 后端提取的源码原文",
+          "",
+          source,
+          "",
+          "#### 业务到代码因果链",
+          "",
+          ...(chain.length ? chain.map((step, stepIndex) => `${stepIndex + 1}. ${step}`) : ["未返回"]),
+          "",
+          "#### 修复建议",
+          "",
+          text(finding.fix_suggestion, "未返回"),
+          "",
+          "#### 验证方式",
+          "",
+          text(finding.verification, "未返回")
+        );
+      });
+
+      const limitations = Array.isArray(result.limitations) ? result.limitations.filter(value => text(value)) : [];
+      const scannedFiles = Array.isArray(result.scanned_files) ? result.scanned_files.filter(value => text(value)) : [];
+      if (scannedFiles.length) lines.push("", "## 已扫描文件", "", ...scannedFiles.map(value => `- ${value}`));
+      if (limitations.length) lines.push("", "## 本次限制", "", ...limitations.map(value => `- ${value}`));
+      return `${lines.join("\n")}\n`;
+    }
+
+    function downloadReport() {
+      if (!currentReport) return;
+      const url = URL.createObjectURL(new Blob([buildMarkdown(currentReport)], { type: "text/markdown;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `根因候选报告-${new Date().toISOString().slice(0, 10)}.md`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      document.querySelector("#announcer").textContent = "根因候选报告已下载";
+    }
+
+    async function readJson(response) {
+      const raw = await response.text();
+      try { return raw ? JSON.parse(raw) : {}; }
+      catch { throw new Error(`服务端返回了无法识别的内容（状态码 ${response.status}）`); }
+    }
+
+    async function analyze(event) {
+      event.preventDefault();
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        form.querySelector(":invalid")?.focus();
+        return;
+      }
+
+      errorBox.classList.remove("is-visible");
+      report.hidden = true;
+      currentReport = null;
+      setRunning(true);
+      setStatus("running", "正在生成根因候选", "后端正在读取授权仓库并分析，请保持页面打开");
+      document.querySelector("#provider").textContent = "等待后端回传";
+      startTimer();
+
+      const payload = {
+        ...Object.fromEntries(Object.entries(fields).map(([key, field]) => [key, field.value.trim()])),
+        source_consent: sourceConsent.checked
+      };
+
+      try {
+        const response = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await readJson(response);
+        if (!response.ok) {
+          const failure = new Error(text(result.error, `分析请求失败（状态码 ${response.status}）`));
+          failure.hint = text(result.hint);
+          throw failure;
+        }
+
+        stopTimer(result.elapsed_seconds);
+        document.querySelector("#provider").textContent = providerLabel(result.provider);
+        setStatus("success", "三个候选报告已生成", `后端返回 ${Array.isArray(result.findings) ? Math.min(result.findings.length, 3) : 0} 个根因候选`);
+        currentReport = { result, input: payload };
+        renderReport(result);
+        report.scrollIntoView({ behavior: "smooth", block: "start" });
+        report.focus({ preventScroll: true });
+        document.querySelector("#announcer").textContent = "分析完成，三个根因候选报告已生成";
+      } catch (error) {
+        stopTimer();
+        document.querySelector("#provider").textContent = "未完成";
+        const networkHint = error instanceof TypeError ? "确认本地服务仍在运行后重试。" : "";
+        showError(error.message, error.hint || networkHint);
+      } finally {
+        setRunning(false);
+      }
+    }
+
+    async function loadConfig() {
+      try {
+        const response = await fetch("/api/config", { headers: { "Accept": "application/json" } });
+        const result = await readJson(response);
+        if (!response.ok) throw new Error(text(result.error, "无法读取仓库配置"));
+        config = result;
+        document.querySelector("#repo-name").textContent = text(config.repo_name, "已授权代码仓库");
+        document.querySelector("#repo-path").textContent = text(config.repo_path, "路径由后端锁定");
+        analyzeButton.disabled = false;
+      } catch (error) {
+        document.querySelector("#repo-name").textContent = "授权仓库读取失败";
+        document.querySelector("#repo-path").textContent = "请确认本地服务已正常启动";
+        showError(error.message, "刷新页面，或重新启动本地服务。", "idle");
+      }
+    }
+
+    Object.values(fields).forEach(field => field.addEventListener("input", updateCounts));
+    document.querySelector("#fill-demo").addEventListener("click", fillExample);
+    document.querySelector("#hero-fill-demo").addEventListener("click", () => {
+      fillExample();
+      document.querySelector("#main").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    document.querySelector("#download-report").addEventListener("click", downloadReport);
+    form.addEventListener("submit", analyze);
+    updateCounts();
+    setupHeroTitle();
+    setupVideoScrub();
+    setupHeroNavigation();
+    loadConfig();
+  </script>
+</body>
+</html>
